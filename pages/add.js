@@ -1,12 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/router"
 import Link from "next/link"
-import dynamic from "next/dynamic"
+import { Html5QrcodeScanner } from "html5-qrcode"
 import { QrCode, Plus, ArrowLeft, CheckCircle, Shield, Scan, X } from "lucide-react"
-
-const QrReader = dynamic(() => import("@blackbox-vision/react-qr-reader").then((mod) => mod.QrReader), { ssr: false })
 
 function parseOtpAuthUri(uri) {
   try {
@@ -32,24 +30,37 @@ export default function AddAccount() {
   const [showScanner, setShowScanner] = useState(false)
   const router = useRouter()
 
-  const handleScan = (data) => {
-    if (data) {
-      const parsed = parseOtpAuthUri(data)
-      if (parsed) {
-        setLabel(parsed.label)
-        setSecret(parsed.secret)
-        setIssuer(parsed.issuer)
-        setShowScanner(false)
-        setError("")
-      } else {
-        setError("Invalid QR code.")
+  useEffect(() => {
+    if (showScanner) {
+      const scanner = new Html5QrcodeScanner("reader", {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+      })
+
+      scanner.render(
+        (data) => {
+          const parsed = parseOtpAuthUri(data)
+          if (parsed) {
+            setLabel(parsed.label)
+            setSecret(parsed.secret)
+            setIssuer(parsed.issuer)
+            setShowScanner(false)
+            setError("")
+            scanner.clear()
+          } else {
+            setError("Invalid QR code")
+          }
+        },
+        (err) => {
+          setError("QR scan failed")
+        }
+      )
+
+      return () => {
+        scanner.clear().catch(() => {})
       }
     }
-  }
-
-  const handleError = () => {
-    setError("QR scan failed.")
-  }
+  }, [showScanner])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -136,9 +147,7 @@ export default function AddAccount() {
                 <Scan className="w-3 h-3" />
                 <span className="text-sm font-medium">Position QR code within the frame</span>
               </div>
-              <div className="rounded-lg overflow-hidden">
-                <QrReader delay={300} onError={handleError} onScan={handleScan} style={{ width: "80%" }} />
-              </div>
+              <div id="reader" className="rounded-lg overflow-hidden" />
             </div>
           )}
 
